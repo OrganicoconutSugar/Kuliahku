@@ -1783,7 +1783,8 @@ input::file-selector-button {
 .detail-grid > .panel,
 .reports-grid > .panel,
 .settings-grid > .panel {
-  height: calc(100% - 16px);
+  height: auto;
+  align-self: stretch;
   margin-bottom: 0;
 }
 .settings-grid,
