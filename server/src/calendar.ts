@@ -88,7 +88,7 @@ export function calendar(
             time(s.endAt) === slot.endTime &&
             s.room === slot.room,
         )
-        const first = matches[0]
+        const first = matches.find((s) => s.status === 'normal')
         if (first) {
           const exclusions = []
           for (let d = first.date; d <= w.semester.endDate; d = addDays(d, 7))

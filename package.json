@@ -9,7 +9,8 @@
   "scripts": {
     "setup": "node scripts/setup.mjs && prisma generate && prisma migrate deploy",
     "dev": "node scripts/dev.mjs",
-    "build": "npm run typecheck && vite build",
+    "build": "prisma generate && npm run typecheck && vite build",
+    "build:server": "esbuild server/src/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist-server/server.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint client/src server/src shared",
     "start": "tsx server/src/index.ts",

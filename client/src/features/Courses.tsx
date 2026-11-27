@@ -445,7 +445,7 @@ export function CourseDetail() {
               <GraduationCap />
             </span>
             <h3>{c.lecturerName || 'Nama dosen belum diisi'}</h3>
-            {c.lecturerPhone && (
+            {phoneInternational(c.lecturerPhone) && (
               <div className="actions">
                 <a className="brut-btn" href={'tel:+' + phoneInternational(c.lecturerPhone)}>
                   <Phone size={16} />
@@ -545,6 +545,10 @@ function SessionBody({
     [holiday, setHoliday] = useState(false),
     [reason, setReason] = useState(s.reason ?? ''),
     save = useSubmit()
+  useEffect(() => {
+    setTopic(s.topic ?? '')
+    setReason(s.reason ?? '')
+  }, [s.topic, s.reason])
   const siblings = w.sessions.filter((m) => m.courseId === c.id),
     i = siblings.findIndex((m) => m.id === s.id),
     tasks = w.tasks.filter((t) => t.sessionId === s.id)
@@ -561,7 +565,13 @@ function SessionBody({
       </Link>
       <div className={'course-banner bg-' + c.color}>
         <Badge course={c} />
-        <h1>{s.status === 'libur' ? 'Pertemuan libur' : 'Pertemuan ke-' + s.meetingNo}</h1>
+        <h1>
+          {s.status === 'libur'
+            ? 'Pertemuan libur'
+            : s.meetingNo === null
+              ? 'Jadwal kelas'
+              : 'Pertemuan ke-' + s.meetingNo}
+        </h1>
         <div className="meta-line">
           <span>
             <CalendarDays />
@@ -657,7 +667,7 @@ function SessionBody({
             </Field>
             <p>Catatan tetap tersimpan. Nomor pertemuan lain tetap sesuai input kamu.</p>
             {save.error && <Alert>{save.error}</Alert>}
-            <Button type="submit" color="sunny">
+            <Button type="submit" color="sunny" disabled={save.busy}>
               Tandai libur
             </Button>
           </form>

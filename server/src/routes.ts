@@ -108,7 +108,7 @@ routes.all(['/courses/:id/schedules', '/courses/:id/schedules/:slot'], async (re
   if (req.method !== 'POST' && !original) throw missing()
   const list =
     req.method === 'POST'
-      ? [...slots, slotInput.parse(req.body)]
+      ? [...slots, slotInput.parse({ ...req.body, id: undefined })]
       : req.method === 'DELETE'
         ? slots.filter((s) => s.id !== slotId)
         : slots.map((s) => (s.id === slotId ? slotInput.parse({ ...s, ...req.body, id: s.id }) : s))
@@ -263,7 +263,7 @@ routes.get('/search', async (req, res) => {
     ...w.tasks.map((t) => ({
       type: 'PR',
       title: t.title,
-      text: '',
+      text: t.description ?? '',
       courseId: t.courseId,
       sessionId: t.sessionId,
       date: day(t.dueAt),

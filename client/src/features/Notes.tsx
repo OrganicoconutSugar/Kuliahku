@@ -178,7 +178,7 @@ export function Notes() {
               </select>
             </Field>
             {save.error && <Alert>{save.error}</Alert>}
-            <Button type="submit" color="sunny">
+            <Button type="submit" color="sunny" disabled={save.busy}>
               Buka editor
             </Button>
           </form>
@@ -229,6 +229,7 @@ function EditorBody({ n }: { n: Note }) {
   const version = useRef(draft.base ?? n.updatedAt),
     text = useRef<HTMLTextAreaElement>(null),
     current = useRef(draft),
+    dirty = useRef(Boolean(localStorage.getItem(key))),
     timer = useRef<ReturnType<typeof setTimeout>>(),
     queue = useRef<Promise<void>>(Promise.resolve()),
     mounted = useRef(true),
@@ -236,8 +237,13 @@ function EditorBody({ n }: { n: Note }) {
   function update(d: Draft) {
     const next = { ...d, base: version.current }
     current.current = next
+    dirty.current = true
     set(next)
-    localStorage.setItem(key, JSON.stringify(next))
+    try {
+      localStorage.setItem(key, JSON.stringify(next))
+    } catch {
+      /* Ignore quota errors; persist() still falls back to current.current. */
+    }
     setStatus('Menunggu simpan…')
     clearTimeout(timer.current)
     timer.current = setTimeout(() => {
@@ -248,8 +254,8 @@ function EditorBody({ n }: { n: Note }) {
     clearTimeout(timer.current)
     const job = async () => {
       const raw = localStorage.getItem(key)
-      if (!raw) return
-      const d = JSON.parse(raw) as Draft
+      if (!raw && !dirty.current) return
+      const d = raw ? (JSON.parse(raw) as Draft) : current.current
       if (mounted.current) setStatus('Menyimpan…')
       try {
         const saved = await api<Note>('/notes/' + n.id, 'PATCH', {
@@ -267,13 +273,18 @@ function EditorBody({ n }: { n: Note }) {
         })
         version.current = saved.updatedAt
         setConflict(false)
-        if (localStorage.getItem(key) === raw) {
+        if ((!raw && current.current === d) || (raw && localStorage.getItem(key) === raw)) {
           localStorage.removeItem(key)
+          dirty.current = false
           if (mounted.current) setStatus('Tersimpan')
         } else {
           const latest = { ...current.current, base: saved.updatedAt }
           current.current = latest
-          localStorage.setItem(key, JSON.stringify(latest))
+          try {
+            localStorage.setItem(key, JSON.stringify(latest))
+          } catch {
+            /* Ignore quota errors. */
+          }
         }
         if (mounted.current) setError('')
         await refresh()
@@ -433,7 +444,10 @@ function EditorBody({ n }: { n: Note }) {
                   capture="environment"
                   aria-label="Ambil foto"
                   disabled={uploading}
-                  onChange={(e) => void images(Array.from(e.target.files ?? []))}
+                  onChange={(e) => {
+                    void images(Array.from(e.target.files ?? []))
+                    e.target.value = ''
+                  }}
                 />
               </label>
             </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { Component, useState, useEffect, useRef, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -86,6 +86,28 @@ function Navigation({ close }: { close?: () => void }) {
     </nav>
   )
 }
+class ErrorBoundary extends Component<
+  { children: ReactNode; resetKey: string },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null }
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+  componentDidUpdate(prev: { resetKey: string }) {
+    if (prev.resetKey !== this.props.resetKey && this.state.error) this.setState({ error: null })
+  }
+  render() {
+    if (this.state.error)
+      return (
+        <div className="panel">
+          <Alert>Terjadi kendala saat menampilkan halaman ini.</Alert>
+          <Button onClick={() => this.setState({ error: null })}>Coba lagi</Button>
+        </div>
+      )
+    return this.props.children
+  }
+}
 function Frame({
   children,
   openCapture,
@@ -131,8 +153,10 @@ function Frame({
             <GraduationCap size={19} />
           </span>
           <div>
-            <small>SEMESTER {w.semester?.isActive ? 'AKTIF' : 'ARSIP'}</small>
-            <strong>{w.semester?.name}</strong>
+            <small>
+              SEMESTER {w.semester ? (w.semester.isActive ? 'AKTIF' : 'ARSIP') : 'BELUM DIPILIH'}
+            </small>
+            <strong>{w.semester?.name ?? 'Belum ada semester aktif'}</strong>
           </div>
         </div>
       </aside>
@@ -169,22 +193,26 @@ function Frame({
           </div>
         </header>
         <main id="isi" className="page-content" key={pathname}>
-          {!w.semester?.isActive && (
+          {w.semester && !w.semester.isActive && (
             <p className="archive-banner">
-              Kamu sedang melihat arsip {w.semester?.name}.{' '}
+              Kamu sedang melihat arsip {w.semester.name}.{' '}
               <Link to="/pengaturan">Pilih semester</Link>
             </p>
           )}
-          {children}
+          <ErrorBoundary resetKey={pathname}>{children}</ErrorBoundary>
         </main>
       </div>
-      <Button
-        color="sunny"
-        className={'capture-fab ' + (pathname === '/' || pathname === '/hari-ini' ? 'wiggle' : '')}
-        onClick={openCapture}
-      >
-        <Plus size={21} /> Quick Capture <kbd>C</kbd>
-      </Button>
+      {w.semester && w.courses.length > 0 && (
+        <Button
+          color="sunny"
+          className={
+            'capture-fab ' + (pathname === '/' || pathname === '/hari-ini' ? 'wiggle' : '')
+          }
+          onClick={openCapture}
+        >
+          <Plus size={21} /> Quick Capture <kbd>C</kbd>
+        </Button>
+      )}
       <nav className="bottom-nav" aria-label="Navigasi ponsel">
         <NavLink
           to="/hari-ini"
@@ -197,7 +225,12 @@ function Frame({
           <CalendarDays />
           Jadwal
         </NavLink>
-        <button className="nav-capture" onClick={openCapture} aria-label="Quick Capture">
+        <button
+          className="nav-capture"
+          onClick={openCapture}
+          disabled={!w.semester || !w.courses.length}
+          aria-label="Quick Capture"
+        >
           <Plus />
         </button>
         <NavLink to="/pr">
@@ -288,7 +321,14 @@ export function Protected() {
         e.preventDefault()
         nav('/cari')
         document.getElementById('global-query')?.focus()
-      } else if (!edit && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'c') {
+      } else if (
+        w.data.courses.length &&
+        !edit &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === 'c'
+      ) {
         e.preventDefault()
         setCapture({})
       }

@@ -164,7 +164,8 @@ export function Dashboard() {
     classes = d.today.filter((s) => s.status === 'normal'),
     active = classes.some((s) => classStatus(s, now) === 'Sedang berlangsung')
   const next = d.next,
-    course = (s: Meeting) => w.courses.find((c) => c.id === s.courseId)!
+    course = (s: Meeting) => w.courses.find((c) => c.id === s.courseId),
+    nextCourse = next ? course(next) : undefined
   const catState = cheering
     ? 'celebrate'
     : d.urgent.some((t) => Date.parse(t.dueAt) - +now <= 86400000)
@@ -219,8 +220,8 @@ export function Dashboard() {
               state={catState}
               level={p.animationLevel}
               tip={
-                next
-                  ? 'Kelas berikutnya ' + course(next).code + ' di ' + next.room + '.'
+                next && nextCourse
+                  ? 'Kelas berikutnya ' + nextCourse.code + ' di ' + next.room + '.'
                   : 'Coba buka rekap minggu ini.'
               }
             />
@@ -248,58 +249,64 @@ export function Dashboard() {
             linkText="Jadwal"
           >
             {d.today.length ? (
-              d.today.map((s) => (
-                <div
-                  className={
-                    'class-row ' + (classStatus(s, now) === 'Sedang berlangsung' ? 'live' : '')
-                  }
-                  key={s.id}
-                >
-                  <div className={'class-rail bg-' + course(s).color} />
-                  <div className="class-details">
-                    <div className="row-meta">
-                      <Badge course={course(s)} />
-                      <span>{sessionLabel(s)}</span>
-                      <Chip
-                        color={
-                          active && classStatus(s, now) === 'Sedang berlangsung' ? 'teal' : 'cream'
-                        }
-                      >
-                        {classStatus(s, now)}
-                      </Chip>
-                    </div>
-                    <h3>{course(s).name}</h3>
-                    <small>
-                      <Clock3 size={14} />
-                      {time(s.startAt)}–{time(s.endAt)} <MapPin size={14} /> {s.room}
-                    </small>
-                    <small>
-                      <GraduationCap size={15} /> {course(s).lecturerName}
-                    </small>
-                    <div className="actions">
-                      <Link className="text-link" to={meetingLink(s)}>
-                        {isRoutine(s) ? 'Buka mata kuliah' : 'Buka pertemuan'}{' '}
-                        <ArrowUpRight size={15} />
-                      </Link>
-                      <Button
-                        onClick={() =>
-                          capture({ courseId: s.courseId, sessionId: isRoutine(s) ? null : s.id })
-                        }
-                      >
-                        <NotebookPen size={15} /> Catat
-                      </Button>
+              d.today.map((s) => {
+                const c = course(s)
+                if (!c) return null
+                return (
+                  <div
+                    className={
+                      'class-row ' + (classStatus(s, now) === 'Sedang berlangsung' ? 'live' : '')
+                    }
+                    key={s.id}
+                  >
+                    <div className={'class-rail bg-' + c.color} />
+                    <div className="class-details">
+                      <div className="row-meta">
+                        <Badge course={c} />
+                        <span>{sessionLabel(s)}</span>
+                        <Chip
+                          color={
+                            active && classStatus(s, now) === 'Sedang berlangsung'
+                              ? 'teal'
+                              : 'cream'
+                          }
+                        >
+                          {classStatus(s, now)}
+                        </Chip>
+                      </div>
+                      <h3>{c.name}</h3>
+                      <small>
+                        <Clock3 size={14} />
+                        {time(s.startAt)}–{time(s.endAt)} <MapPin size={14} /> {s.room}
+                      </small>
+                      <small>
+                        <GraduationCap size={15} /> {c.lecturerName}
+                      </small>
+                      <div className="actions">
+                        <Link className="text-link" to={meetingLink(s)}>
+                          {isRoutine(s) ? 'Buka mata kuliah' : 'Buka pertemuan'}{' '}
+                          <ArrowUpRight size={15} />
+                        </Link>
+                        <Button
+                          onClick={() =>
+                            capture({ courseId: s.courseId, sessionId: isRoutine(s) ? null : s.id })
+                          }
+                        >
+                          <NotebookPen size={15} /> Catat
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                )
+              })
             ) : (
               <Empty
                 title="Tidak ada kuliah hari ini."
                 action={
-                  next ? (
+                  next && nextCourse ? (
                     <Link className="text-link" to={meetingLink(next)}>
                       Berikutnya {days[weekday(next.date) - 1]}, {formatDay(next.date)} ·{' '}
-                      {time(next.startAt)} · {course(next).name} · {next.room}{' '}
+                      {time(next.startAt)} · {nextCourse.name} · {next.room}{' '}
                       <ArrowRight size={15} />
                     </Link>
                   ) : (
@@ -320,19 +327,23 @@ export function Dashboard() {
             }
           >
             {d.tomorrow.length ? (
-              d.tomorrow.map((s) => (
-                <Link key={s.id} className="list-item" to={meetingLink(s)}>
-                  <Badge course={course(s)} />
-                  <div className="grow">
-                    <strong>{course(s).name}</strong>
-                    <small>
-                      {time(s.startAt)} · {s.room}
-                      {s.status === 'libur' ? ' · Libur' : ''}
-                    </small>
-                  </div>
-                  <ChevronRight size={17} />
-                </Link>
-              ))
+              d.tomorrow.map((s) => {
+                const c = course(s)
+                if (!c) return null
+                return (
+                  <Link key={s.id} className="list-item" to={meetingLink(s)}>
+                    <Badge course={c} />
+                    <div className="grow">
+                      <strong>{c.name}</strong>
+                      <small>
+                        {time(s.startAt)} · {s.room}
+                        {s.status === 'libur' ? ' · Libur' : ''}
+                      </small>
+                    </div>
+                    <ChevronRight size={17} />
+                  </Link>
+                )
+              })
             ) : (
               <Empty title="Besok bebas kuliah. Kamu bisa lihat agenda minggu ini." />
             )}
@@ -528,8 +539,9 @@ export function Schedule() {
   function cards(date: string, grid: boolean) {
     const list = week.filter((s) => s.date === date)
     return list.map((s, i) => {
-      const c = w.courses.find((c) => c.id === s.courseId)!,
-        joined = i > 0 && list[i - 1].endAt === s.startAt && list[i - 1].room === s.room
+      const c = w.courses.find((c) => c.id === s.courseId)
+      if (!c) return null
+      const joined = i > 0 && list[i - 1].endAt === s.startAt && list[i - 1].room === s.room
       return (
         <Link
           key={s.id}
@@ -607,7 +619,8 @@ export function Schedule() {
               <div className="grow">
                 <strong>{t.title}</strong>
                 <small>
-                  Deadline {formatDay(day(t.dueAt), true)} · {time(t.dueAt)} WIB
+                  Deadline {formatDay(day(t.dueAt), true)}
+                  {t.dueHasTime ? ' · ' + time(t.dueAt) + ' WIB' : ''}
                 </small>
               </div>
               <ChevronRight size={16} />
@@ -699,6 +712,9 @@ export function Tasks() {
         ? a.dueAt.localeCompare(b.dueAt)
         : (b.completedAt ?? '').localeCompare(a.completedAt ?? ''),
     )
+  useEffect(() => {
+    if (target) setTab(target.status === 'done' ? 'Selesai' : 'Aktif')
+  }, [id, target?.status])
   useEffect(() => {
     if (id) document.getElementById('item-' + id)?.scrollIntoView({ block: 'center' })
   }, [id, tab])

@@ -134,7 +134,8 @@ export function StatsPage() {
         </Panel>
         <Panel title="Cakupan catatan per MK">
           {d.coverage.map((v) => {
-            const c = w.courses.find((c) => c.id === v.courseId)!
+            const c = w.courses.find((c) => c.id === v.courseId)
+            if (!c) return null
             return (
               <div className="coverage" key={c.id}>
                 <div>
@@ -215,21 +216,24 @@ export function RecapPage() {
     return [
       'Rekap KuliahKu · ' + formatDay(d.from) + ' – ' + formatDay(d.to),
       ...d.groups.flatMap((g) => {
-        const c = w.courses.find((c) => c.id === g.courseId)!
+        const c = w.courses.find((c) => c.id === g.courseId)
+        if (!c) return []
         return [
           '',
           '' + c.code + ' · ' + c.name,
           g.recorded + '/' + g.sessions + ' pertemuan tercatat',
           ...(!g.hasValid ? ['Belum ada catatan'] : []),
-          ...g.notes.map(
-            (n) =>
+          ...g.notes.map((n) => {
+            const s = n.sessionId ? w.sessions.find((s) => s.id === n.sessionId) : undefined
+            return (
               '• ' +
               n.title +
               ' · ' +
-              (n.sessionId ? sessionLabel(w.sessions.find((s) => s.id === n.sessionId)!) : 'Umum') +
+              (s ? sessionLabel(s) : 'Umum') +
               '\n  ' +
-              n.body.split('\n').slice(0, 2).join(' ').slice(0, 180),
-          ),
+              n.body.split('\n').slice(0, 2).join(' ').slice(0, 180)
+            )
+          }),
           'PR selesai ' + g.done + ' · aktif ' + g.active + ' · terlambat ' + g.late,
         ]
       }),
@@ -297,7 +301,8 @@ export function RecapPage() {
             </div>
             <div className="reports-grid">
               {d.groups.map((g) => {
-                const c = w.courses.find((c) => c.id === g.courseId)!
+                const c = w.courses.find((c) => c.id === g.courseId)
+                if (!c) return null
                 return (
                   <Panel key={c.id} title={c.name} icon={<Badge course={c} />}>
                     <p>

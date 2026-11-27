@@ -110,11 +110,21 @@ describe('Transaksi SQLite', () => {
         storageKey: 'file-uji',
       },
     })
+    await core.db.attachment.create({
+      data: {
+        userId,
+        courseId,
+        kind: 'module',
+        source: 'upload',
+        title: 'Hilang',
+        storageKey: 'file-tidak-ada',
+      },
+    })
     const target = await backup(),
       snapshot = new PrismaClient({ datasourceUrl: 'file:' + join(target!, 'kuliahku.db') })
     try {
       expect(await snapshot.user.count()).toBe(1)
-      expect(await snapshot.attachment.count()).toBe(1)
+      expect(await snapshot.attachment.count()).toBe(2)
       expect(readFileSync(join(target!, 'uploads', 'file-uji'), 'utf8')).toBe('isi modul')
       expect(await backup()).toBe(target)
     } finally {

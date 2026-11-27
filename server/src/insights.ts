@@ -87,9 +87,9 @@ export const RecapService = {
     w: Workspace,
     {
       mode = '7d',
-      to = day(),
-      from = addDays(to, -6),
       now = new Date(),
+      to = day(now),
+      from = addDays(to, -6),
     }: { mode?: string; to?: string; from?: string; now?: Date } = {},
   ) {
     const teaching = w.sessions.filter((s) => s.tracked && s.status === 'normal')

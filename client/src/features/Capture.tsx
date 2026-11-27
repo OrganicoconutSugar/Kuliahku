@@ -1,6 +1,6 @@
 import { agenda, isRoutine } from '../../../shared/agenda'
 import { useEffect, useRef, useState } from 'react'
-import { Camera, Save, Paperclip } from 'lucide-react'
+import { Camera, Save, Paperclip, X } from 'lucide-react'
 import {
   addDays,
   day,
@@ -11,7 +11,7 @@ import {
   type Task,
 } from '../../../shared/model'
 import { useApp, type CaptureContext } from '../app/context'
-import { api, attachImage, refresh } from '../lib/api'
+import { api, attachImage, compress, refresh } from '../lib/api'
 import { Alert, Button, Field, Modal, Tabs, useSubmit } from '../components/ui'
 function ContextFields({
   courseId,
@@ -79,7 +79,7 @@ export function Capture({ initial, onClose }: { initial: CaptureContext; onClose
         (initial.courseId ? '' : suggested && !isRoutine(suggested) ? suggested.id : ''),
     }
     const d = readDraft<typeof base>(key)
-    return {
+    const merged = {
       ...base,
       ...d,
       ...(initial.courseId
@@ -87,13 +87,28 @@ export function Capture({ initial, onClose }: { initial: CaptureContext; onClose
         : {}),
       ...(initial.tab ? { tab: initial.tab } : {}),
     }
+    const validCourse = w.courses.some((c) => c.id === merged.courseId)
+      ? merged.courseId
+      : base.courseId
+    const validSession =
+      merged.sessionId &&
+      w.sessions.some((s) => s.id === merged.sessionId && s.courseId === validCourse)
+        ? merged.sessionId
+        : validCourse === base.courseId
+          ? base.sessionId
+          : ''
+    return { ...merged, courseId: validCourse, sessionId: validSession }
   })
   const [files, setFiles] = useState<File[]>([]),
     input = useRef<HTMLTextAreaElement>(null),
     titleInput = useRef<HTMLInputElement>(null)
   useEffect(() => {
-    if (draft.text || draft.title) localStorage.setItem(key, JSON.stringify(draft))
-    else localStorage.removeItem(key)
+    try {
+      if (draft.text || draft.title) localStorage.setItem(key, JSON.stringify(draft))
+      else localStorage.removeItem(key)
+    } catch {
+      /* Ignore storage quota errors so quick capture keeps working. */
+    }
   }, [key, draft])
   useEffect(() => {
     if (draft.tab === 'Catatan') input.current?.focus()
@@ -105,20 +120,37 @@ export function Capture({ initial, onClose }: { initial: CaptureContext; onClose
     const context = { courseId: draft.courseId, sessionId: draft.sessionId || null }
     if (draft.tab === 'PR') {
       await api('/tasks', 'POST', { ...context, title: draft.title, dueDate: draft.dueDate })
-    } else {
-      if (draft.tab === 'Foto' && !files.length) throw new Error('Pilih gambar terlebih dahulu.')
+    } else if (draft.tab === 'Foto') {
+      if (!files.length) throw new Error('Pilih gambar terlebih dahulu.')
+      const prepared = await Promise.all(files.map(async (f) => ({ original: f, ready: await compress(f) })))
       const note = await api<Note>('/notes/quick', 'POST', {
         ...context,
-        text: draft.tab === 'Foto' ? '' : draft.text,
-        photo: draft.tab === 'Foto',
+        text: '',
+        photo: true,
       })
-      if (draft.tab === 'Foto')
-        for (const file of files) {
-          await attachImage(file, note)
-          setFiles((old) => old.filter((f) => f !== file))
-        }
+      for (const { original, ready } of prepared) {
+        await attachImage(ready, note, true)
+        setFiles((old) => old.filter((f) => f !== original))
+      }
+    } else {
+      await api<Note>('/notes/quick', 'POST', {
+        ...context,
+        text: draft.text,
+        photo: false,
+      })
     }
-    localStorage.removeItem(key)
+    const remaining =
+      draft.tab === 'PR'
+        ? { ...draft, title: '' }
+        : draft.tab === 'Catatan'
+          ? { ...draft, text: '' }
+          : draft
+    try {
+      if (remaining.text || remaining.title) localStorage.setItem(key, JSON.stringify(remaining))
+      else localStorage.removeItem(key)
+    } catch {
+      /* Ignore storage errors. */
+    }
     await refresh()
     celebrate()
     toast(
@@ -210,7 +242,10 @@ export function Capture({ initial, onClose }: { initial: CaptureContext; onClose
                 type="file"
                 accept="image/*"
                 capture="environment"
-                onChange={(e) => setFiles([...files, ...Array.from(e.target.files ?? [])])}
+                onChange={(e) => {
+                  setFiles((old) => [...old, ...Array.from(e.target.files ?? [])])
+                  e.target.value = ''
+                }}
               />
             </label>
             <label className="file-box">
@@ -219,12 +254,31 @@ export function Capture({ initial, onClose }: { initial: CaptureContext; onClose
                 type="file"
                 multiple
                 accept="image/*"
-                onChange={(e) => setFiles([...files, ...Array.from(e.target.files ?? [])])}
+                onChange={(e) => {
+                  setFiles((old) => [...old, ...Array.from(e.target.files ?? [])])
+                  e.target.value = ''
+                }}
               />
             </label>
-            <small>
-              {files.length ? files.map((f) => f.name).join(', ') : 'Belum ada foto dipilih.'}
-            </small>
+            {files.length ? (
+              <div className="list">
+                {files.map((f, i) => (
+                  <div className="list-item" key={f.name + '-' + i}>
+                    <small className="grow">{f.name}</small>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label={'Hapus ' + f.name}
+                      onClick={() => setFiles((old) => old.filter((_, j) => j !== i))}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <small>Belum ada foto dipilih.</small>
+            )}
           </>
         )}
         <ContextFields

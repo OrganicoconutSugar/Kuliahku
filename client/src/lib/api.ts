@@ -40,11 +40,17 @@ export const refresh = () =>
 export const termQuery = (path: string, id?: string) =>
   path + (id ? (path.includes('?') ? '&' : '?') + 'semesterId=' + encodeURIComponent(id) : '')
 export async function compress(file: File): Promise<File> {
+  if (file.type && !file.type.startsWith('image/'))
+    throw new Error('Pilih berkas gambar (JPG, PNG, GIF, atau WebP).')
   const url = URL.createObjectURL(file)
   try {
     const img = new Image()
     img.src = url
-    await img.decode()
+    try {
+      await img.decode()
+    } catch {
+      throw new Error('Foto belum bisa diproses. Pastikan berkas berupa gambar yang valid.')
+    }
     const scale = Math.min(1, 1600 / Math.max(img.width, img.height))
     if (scale === 1 && file.size < 450000) return file
     const canvas = document.createElement('canvas')
@@ -57,7 +63,9 @@ export async function compress(file: File): Promise<File> {
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
     const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, 'image/jpeg', 0.83))
     if (!blob) throw new Error('Foto belum bisa diproses.')
-    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' })
+    return new File([blob], (file.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg', {
+      type: 'image/jpeg',
+    })
   } finally {
     URL.revokeObjectURL(url)
   }
@@ -65,13 +73,15 @@ export async function compress(file: File): Promise<File> {
 export async function attachImage(
   file: File,
   note: { id: string; courseId: string; sessionId: string | null },
+  skipCompress = false,
 ) {
+  const ready = skipCompress ? file : await compress(file)
   const data = new FormData()
-  data.set('file', await compress(file))
+  data.set('file', ready)
   data.set('courseId', note.courseId)
   if (note.sessionId) data.set('sessionId', note.sessionId)
   data.set('kind', 'note_image')
   data.set('noteId', note.id)
-  data.set('title', file.name)
+  data.set('title', (file.name || 'Foto catatan').trim().slice(0, 240) || 'Foto catatan')
   return api<{ id: string }>('/attachments', 'POST', data)
 }

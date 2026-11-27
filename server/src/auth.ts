@@ -14,7 +14,13 @@ declare module 'express-serve-static-core' {
 const publicUser = { id: true, name: true, email: true } as const
 const lifetime = 30 * 86400000,
   cookie = 'kuliahku_session'
-const opts = { httpOnly: true, secure: true, sameSite: 'lax' as const, path: '/' }
+const appUrl = new URL(process.env.APP_ORIGIN || 'http://localhost:' + (process.env.PORT || 5173))
+const opts = {
+  httpOnly: true,
+  secure: appUrl.protocol === 'https:' || appUrl.hostname === 'localhost',
+  sameSite: 'lax' as const,
+  path: '/',
+}
 const digest = (v: string) =>
   createHmac('sha256', process.env.SESSION_SECRET!).update(v).digest('hex')
 const token = (req: Request) =>

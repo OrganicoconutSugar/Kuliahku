@@ -20,8 +20,9 @@ export function agenda(w: Workspace, from: string, to: string): Meeting[] {
             (s.scheduleId === slot.id || s.startAt === startAt),
         )
         if (recorded) {
-          if (!recorded.scheduleId)
-            result[result.indexOf(recorded)] = { ...recorded, scheduleId: slot.id }
+          const idx = result.indexOf(recorded)
+          if (!recorded.scheduleId && idx >= 0)
+            result[idx] = { ...recorded, scheduleId: slot.id }
           continue
         }
         result.push({

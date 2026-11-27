@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import multer from 'multer'
-import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import AdmZip from 'adm-zip'
@@ -12,6 +11,9 @@ import {
   Problem,
   missing,
   uploadDir,
+  hasObjectStorage,
+  storeFile,
+  fetchStoredFile,
   discardFiles,
   type Tx,
 } from './core'
@@ -214,8 +216,7 @@ materials.post('/attachments', multipart, async (req, res) => {
     throw new Problem(400, 'Lampiran catatan harus berupa gambar dengan catatan tujuan.')
   const storageKey = req.file ? randomUUID() : null
   if (req.file && storageKey) {
-    await mkdir(uploadDir, { recursive: true })
-    await writeFile(resolve(uploadDir, storageKey), req.file.buffer, { mode: 0o600, flag: 'wx' })
+    await storeFile(storageKey, req.file.buffer, mime || 'application/octet-stream')
   }
   try {
     const a = await transaction(async (tx) => {
@@ -273,7 +274,11 @@ materials.get('/files/:id', async (req, res) => {
         encodeURIComponent(a.fileName || 'file'),
     )
     .type(a.mimeType || 'application/octet-stream')
-    .sendFile(resolve(uploadDir, a.storageKey))
+  if (hasObjectStorage()) {
+    res.send(await fetchStoredFile(a.storageKey))
+    return
+  }
+  res.sendFile(resolve(uploadDir, a.storageKey))
 })
 materials.patch('/attachments/:id', async (req, res) =>
   res.json(
@@ -290,9 +295,13 @@ materials.delete('/attachments/:id', async (req, res) => {
     })
     if (a.noteId) {
       const n = await tx.note.findUniqueOrThrow({ where: { id: a.noteId } })
+      const pattern = new RegExp(
+        '!\\[[^\\]]*\\]\\(/api/files/' + a.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\)',
+        'g',
+      )
       await tx.note.update({
         where: { id: n.id },
-        data: { body: n.body.replaceAll('![](/api/files/' + a.id + ')', '') },
+        data: { body: n.body.replace(pattern, '') },
       })
       await revalidate(tx, n.id)
     }

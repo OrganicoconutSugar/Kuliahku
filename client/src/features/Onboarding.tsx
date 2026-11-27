@@ -21,7 +21,7 @@ import { Brand, Button, Field, Alert, Chip, useSubmit } from '../components/ui'
 import { MascotCat } from '../components/Mascot'
 import { CourseForm, blankCourse } from './CourseForm'
 export function Onboarding() {
-  const { user, w, setTerm } = useApp(),
+  const { user, w, p, setTerm } = useApp(),
     nav = useNavigate(),
     [step, setStep] = useState(0),
     [form, setForm] = useState({
@@ -37,6 +37,7 @@ export function Onboarding() {
     save = useSubmit()
   const steps = ['Semester', 'Mata kuliah', 'Notifikasi', 'Siap mulai']
   const next = async () => {
+    if (step === 0 && !form.name.trim()) throw new Error('Nama semester wajib diisi.')
     if (step === 0 && !validSemester(form))
       throw new Error(
         'Tanggal selesai harus sesudah tanggal mulai dan rentang maksimal tiga tahun.',
@@ -236,7 +237,9 @@ export function Onboarding() {
             )}
             {step === 3 && (
               <div className="wizard-summary">
-                <MascotCat state="peek" />
+                {p.mascotEnabled && (
+                  <MascotCat state="peek" name={p.mascotName} level={p.animationLevel} />
+                )}
                 <h3>{form.name}</h3>
                 <p>
                   <CalendarDays size={16} /> {form.startDate} sampai {form.endDate}

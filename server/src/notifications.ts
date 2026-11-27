@@ -96,7 +96,7 @@ export function dueRules(w: Workspace, p: Settings, now = new Date(), planned = 
             ' catatan, ' +
             r.groups.reduce((v, g) => v + g.done, 0) +
             ' PR selesai. ' +
-            r.groups.filter((g) => !g.hasValid).length +
+            r.groups.filter((g) => g.sessions > 0 && !g.hasValid).length +
             ' MK belum dicatat.',
           url: '/rekap',
         })

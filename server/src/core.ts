@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { PrismaClient, Prisma } from '@prisma/client'
 import { resolve } from 'node:path'
-import { unlink } from 'node:fs/promises'
+import { mkdir, unlink, writeFile } from 'node:fs/promises'
 import pino from 'pino'
 import type { Workspace } from '../../shared/model'
 export const db = new PrismaClient()
@@ -23,11 +23,57 @@ export const fail = (message: string, status = 400): never => {
 }
 export const missing = () => new Problem(404, 'Data ini tidak ditemukan.', 'NOT_FOUND')
 export const uploadDir = resolve(process.env.UPLOAD_DIR || 'data/uploads')
+const storageUrl = () => process.env.CLOUDVEA_STORAGE_URL?.replace(/\/+$/, '') || ''
+const storageToken = () => process.env.CLOUDVEA_STORAGE_TOKEN || ''
+export const hasObjectStorage = () => Boolean(storageUrl() && storageToken())
+export async function storeFile(key: string, data: Buffer, mimeType: string) {
+  if (hasObjectStorage()) {
+    const res = await fetch(`${storageUrl()}/o/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${storageToken()}`,
+        'Content-Type': mimeType || 'application/octet-stream',
+      },
+      body: new Uint8Array(data),
+    })
+    if (!res.ok) {
+      log.error({ status: res.status, key }, 'Gagal menyimpan file ke object storage')
+      throw new Problem(502, 'Gagal menyimpan file unggahan. Coba lagi sebentar.', 'STORAGE_ERROR')
+    }
+    return
+  }
+  await mkdir(uploadDir, { recursive: true })
+  await writeFile(resolve(uploadDir, key), data, { mode: 0o600, flag: 'wx' })
+}
+export async function fetchStoredFile(key: string): Promise<Buffer> {
+  const res = await fetch(`${storageUrl()}/o/${encodeURIComponent(key)}`, {
+    headers: { Authorization: `Bearer ${storageToken()}` },
+  })
+  if (res.status === 404) throw missing()
+  if (!res.ok) {
+    log.error({ status: res.status, key }, 'Gagal membaca file dari object storage')
+    throw new Problem(502, 'Gagal membaca file unggahan. Coba lagi sebentar.', 'STORAGE_ERROR')
+  }
+  return Buffer.from(await res.arrayBuffer())
+}
 export async function discardFiles(keys: (string | null)[]) {
   await Promise.all(
     keys
       .filter((k): k is string => Boolean(k))
       .map(async (k) => {
+        if (hasObjectStorage()) {
+          try {
+            const res = await fetch(`${storageUrl()}/o/${encodeURIComponent(k)}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${storageToken()}` },
+            })
+            if (!res.ok && res.status !== 404)
+              log.error({ status: res.status, key: k }, 'Gagal membersihkan file di object storage')
+          } catch (e) {
+            log.error({ err: e, key: k }, 'Gagal membersihkan file di object storage')
+          }
+          return
+        }
         try {
           await unlink(resolve(uploadDir, k))
         } catch (e) {

@@ -17,6 +17,15 @@ describe('Pertemuan dan status WIB', () => {
     expect(w.sessions).toHaveLength(0)
     w.sessions = [meeting(mon, 'manual', { meetingNo: 6, scheduleId: null })]
     expect(agenda(w, mon, mon).map((s) => s.meetingNo)).toEqual([6])
+    w.courses = [
+      {
+        ...course,
+        schedules: [course.schedules[0], { ...course.schedules[0], id: 'senin-dup' }],
+      },
+    ]
+    const dupAgenda = agenda(w, mon, mon)
+    expect(dupAgenda).toHaveLength(1)
+    expect(Object.keys(dupAgenda)).toEqual(['0'])
   })
   it('memilih PR aktif berdasarkan minggu deadline WIB termasuk hari tanpa kelas', () => {
     const w = work(
@@ -83,6 +92,9 @@ describe('Streak, cakupan dan rekap', () => {
     })
     expect(r.dates).toEqual(dates.slice(-5))
     expect(r.groups[0].hasValid).toBe(false)
+    const customNow = RecapService.getRecapData(w, { now: instant('2026-09-12', '12:00') })
+    expect(customNow.to).toBe('2026-09-12')
+    expect(customNow.from).toBe('2026-09-06')
   })
 })
 describe('Mesin pengingat', () => {
@@ -127,6 +139,10 @@ describe('Mesin pengingat', () => {
     expect(dueRules(w, prefs, instant(mon, '20:00'))).toHaveLength(0)
     w.sessions = [meeting(tue)]
     expect(dueRules(w, { ...prefs, briefEnabled: false }, instant(mon, '20:05'))).toHaveLength(0)
+    const recap = dueRules(work(), prefs, instant('2026-09-12', '09:05')).find(
+      (r) => r.type === 'recap',
+    )
+    expect(recap?.body).toContain('0 MK belum dicatat.')
   })
 })
 describe('Ekspor dan lampiran', () => {
@@ -146,6 +162,10 @@ describe('Ekspor dan lampiran', () => {
     expect(ics.replaceAll('\r\n', '')).not.toMatch(/[\r\n]/)
     expect(ics.split('\r\n').every((l) => Buffer.byteLength(l) <= 75)).toBe(true)
     expect(calendar(w, true, true, 0)).toContain('UID:task-1@kuliahku')
+    const firstHoliday = work([meeting('2026-08-31', 'first-h', { status: 'libur' })])
+    const icsFirstHoliday = calendar(firstHoliday, true, false, 0, instant('2026-08-31', '07:00'))
+    expect(icsFirstHoliday).toContain('DTSTART;TZID=Asia/Jakarta:20260907T080000')
+    expect(icsFirstHoliday).not.toContain('EXDATE;TZID=Asia/Jakarta:20260831T080000')
   })
   it('melipat UTF-8 pada batas oktet tanpa memotong karakter', () => {
     const input = 'SUMMARY:' + 'kuliah 🎓'.repeat(18),

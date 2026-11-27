@@ -17,6 +17,7 @@ if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32)
   throw new Error('Jalankan npm run setup untuk menyiapkan rahasia sesi.')
 const origin = new URL(process.env.APP_ORIGIN || 'http://localhost:' + port).origin
 app.disable('x-powered-by')
+if (!dev) app.set('trust proxy', 1)
 app.use(
   helmet({
     contentSecurityPolicy: dev
@@ -100,6 +101,10 @@ const onError: ErrorRequestHandler = (err, _req, res, _next) => {
       status === 404
         ? 'Data tidak ditemukan.'
         : 'Kode atau warna sudah digunakan, atau data terkait telah berubah.'
+  } else if (err.status === 404) {
+    status = 404
+    code = 'NOT_FOUND'
+    message = 'Data atau berkas tidak ditemukan.'
   } else if (err.status === 400 || err.status === 413) {
     status = err.status
     message = 'Isi permintaan tidak valid atau terlalu besar.'
@@ -118,8 +123,8 @@ if (dev) {
   app.use(express.static(resolve('dist')))
   app.get('/{*path}', (_req, res) => res.sendFile(resolve('dist/index.html')))
 }
-const server = app.listen(port, process.env.HOST || '127.0.0.1', () =>
-  log.info({ url: origin }, 'KuliahKu siap'),
+const server = app.listen(port, process.env.HOST || (dev ? '127.0.0.1' : '0.0.0.0'), () =>
+  log.info({ url: origin, port }, 'KuliahKu siap'),
 )
 const cron = startScheduler(),
   backups = startBackups()

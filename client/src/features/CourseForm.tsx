@@ -35,8 +35,14 @@ export function CourseForm({
         onSubmit={(e) =>
           save.run(async () => {
             const input = courseInput.safeParse(v)
-            if (!input.success)
-              throw new Error('Periksa isian dan pastikan jam selesai sesudah jam mulai.')
+            if (!input.success) {
+              const first = input.error.issues[0]?.message
+              throw new Error(
+                first && !/^(Invalid|Expected|Required|String must|Number must)/.test(first)
+                  ? first
+                  : 'Periksa isian dan pastikan jam selesai sesudah jam mulai.',
+              )
+            }
             await onSave(input.data)
             onClose()
           }, e)
